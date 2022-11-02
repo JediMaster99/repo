@@ -1,0 +1,358 @@
+<div id="signDiv">
+	Username: <input id="signDiv-username" type="text"></input><br>
+	<!--Password: <input id="signDiv-password" type="password"></input>-->
+	<button id="signDiv-signIn">Connect</button>
+	<!--<button id="signDiv-signUp">Sign Up</button>-->
+</div>
+
+<div id="gameDiv" style="display:none;">
+	<canvas id="ctx" width="500" height="500" style="border:1px solid #000000;"></canvas>
+
+	<div id="chat-text" style="width:500px;height:100px;overflow-y:scroll">
+	</div>
+
+	<form id="chat-form">
+		<input id="chat-input" type="text" style="width:500px"></input>
+	</form>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+/* (D) NO SELECT + HIGHLIGHT COLOR */
+#chat-text { user-select: none; }
+#chat-text::selection { background: none; }
+#chat-text::-moz-selection { background: none; }
+</style>
+<script>
+	var WIDTH = 500;
+	var HEIGHT = 500;
+	var socket = io();
+	
+	//sign
+	var signDiv = document.getElementById('signDiv');
+	var signDivUsername = document.getElementById('signDiv-username');
+	var signDivSignIn = document.getElementById('signDiv-signIn');
+	//var signDivSignUp = document.getElementById('signDiv-signUp');
+	var signDivPassword = document.getElementById('signDiv-password');
+	
+	signDivSignIn.onclick = function(){
+		<!--socket.emit('signIn',{username:signDivUsername.value,password:signDivPassword.value});-->
+		socket.emit('signIn',{username:signDivUsername.value,password:123});
+	}
+	<!--signDivSignUp.onclick = function(){-->
+		<!--socket.emit('signUp',{username:signDivUsername.value,password:signDivPassword.value});-->
+	<!--}-->
+	socket.on('signInResponse',function(data){
+		if(data.success){
+			signDiv.style.display = 'none';
+			gameDiv.style.display = 'inline-block';
+		} else
+			alert("Sign in unsuccessul.");
+	});
+	socket.on('signUpResponse',function(data){
+		if(data.success){
+			alert("Sign up successul.");
+		} else
+			alert("Sign up unsuccessul.");
+	});
+
+	//chat
+	var chatText = document.getElementById('chat-text');
+	var chatInput = document.getElementById('chat-input');
+	var chatForm = document.getElementById('chat-form');
+	
+	socket.on('addToChat',function(data){
+		chatText.innerHTML += '<div>' + data + '</div>';
+	});
+	socket.on('evalAnswer',function(data){
+		console.log(data);
+	});
+	
+	
+	chatForm.onsubmit = function(e){
+		e.preventDefault();
+		if(chatInput.value[0] === '/')
+			socket.emit('evalServer',chatInput.value.slice(1));
+		else
+			socket.emit('sendMsgToServer',chatInput.value);
+		chatInput.value = '';		
+	}
+	
+	//game	
+	
+	var TempX = null;
+	var TempY = null;
+	
+	var mouseDown = false;
+	var Counter = 0;
+	var CounterDef = 100;
+	
+	var Img = {};
+	Img.player = new Image();
+	Img.player.src = '/client/img/player.png';
+	Img.bullet = new Image();
+	Img.bullet.src = '/client/img/bullet.png';
+	Img.grass = new Image();
+	Img.grass.src = '/client/img/grass.png';
+	Img.dirt = new Image();
+	Img.dirt.src = '/client/img/dirt.png';
+	Img.stone = new Image();
+	Img.stone.src = '/client/img/stone.png';
+	
+	var ctx = document.getElementById("ctx").getContext("2d");
+	ctx.font = '30px Arial';
+	
+	var Player = function(initPack){
+		var self = {};
+		self.id = initPack.id;
+		self.number = initPack.number;
+		self.x = initPack.x;
+		self.y = initPack.y;
+		self.hp = initPack.hp;
+		self.hpMax = initPack.hpMax;
+		self.score = initPack.score;
+		
+		self.draw = function(){	
+			var x = self.x - Player.list[selfId].x + WIDTH/2;
+			var y = self.y - Player.list[selfId].y + HEIGHT/2;
+			
+			var hpWidth = 30 * self.hp / self.hpMax;
+			ctx.fillStyle = 'red';
+			ctx.fillRect(x - hpWidth/2,y - 40,hpWidth,4);
+			
+			ctx.fillStyle = 'black';
+			ctx.font = '12px Arial';
+			ctx.fillText(self.id,x - self.id.length*6/2, y - 40);
+			
+			var width = Img.player.width*2;
+			var height = Img.player.height*2;
+			
+			
+			ctx.drawImage(Img.player,
+				0,0,Img.player.width,Img.player.height,
+				x-width/2,y-height/2,width,height);
+			
+			//ctx.fillText(self.score,self.x,self.y-60);
+		}
+		
+		Player.list[self.id] = self;
+		
+		//TempX = Player.list[selfId].x;
+		//TempY = Player.list[selfId].y;
+		TempX = Player.list[self.id].x;
+		TempY = Player.list[self.id].y;
+		
+		
+		return self;
+	}
+	Player.list = {};
+
+		
+	var Bullet = function(initPack){
+		var self = {};
+		self.id = initPack.id;
+		self.x = initPack.x;
+		self.y = initPack.y;
+		
+		self.draw = function(){			
+			var width = Img.bullet.width/2;
+			var height = Img.bullet.height/2;
+			
+			var x = self.x - Player.list[selfId].x + WIDTH/2;
+			var y = self.y - Player.list[selfId].y + HEIGHT/2;
+			
+			ctx.drawImage(Img.bullet,
+				0,0,Img.bullet.width,Img.bullet.height,
+				x-width/2,y-height/2,width,height);
+		}
+		
+		Bullet.list[self.id] = self;		
+		return self;
+	}
+	Bullet.list = {};
+	
+	var selfId = null;
+
+	socket.on('init',function(data){
+		if(data.selfId)
+			selfId = data.selfId;
+		//{ player : [{id:123,number:'1',x:0,y:0},{id:1,number:'2',x:0,y:0}], bullet: []}
+		for(var i = 0 ; i < data.player.length; i++){
+			new Player(data.player[i]);
+		}
+		for(var i = 0 ; i < data.bullet.length; i++){
+			new Bullet(data.bullet[i]);
+		}
+	});
+	
+	socket.on('update',function(data){
+		//{ player : [{id:123,x:0,y:0},{id:1,x:0,y:0}], bullet: []}
+		for(var i = 0 ; i < data.player.length; i++){
+			var pack = data.player[i];
+			var p = Player.list[pack.id];
+			if(p){
+				if(pack.x !== undefined)
+					p.x = pack.x;
+				if(pack.y !== undefined)
+					p.y = pack.y;
+				if(pack.hp !== undefined)
+					p.hp = pack.hp;
+				if(pack.score !== undefined)
+					p.score = pack.score;
+			}
+		}
+		for(var i = 0 ; i < data.bullet.length; i++){
+			var pack = data.bullet[i];
+			var b = Bullet.list[data.bullet[i].id];
+			if(b){
+				if(pack.x !== undefined)
+					b.x = pack.x;
+				if(pack.y !== undefined)
+					b.y = pack.y;
+			}
+		}
+	});
+	
+	socket.on('remove',function(data){
+		//{player:[12323],bullet:[12323,123123]}
+		for(var i = 0 ; i < data.player.length; i++){
+			delete Player.list[data.player[i]];
+		}
+		for(var i = 0 ; i < data.bullet.length; i++){
+			delete Bullet.list[data.bullet[i]];
+		}
+	});
+	
+	setInterval(function(){
+		if(!selfId)
+			return;
+		ctx.clearRect(0,0,500,500);
+		drawMap();
+		drawScore();
+		drawCoords();
+		for(var i in Player.list)
+			Player.list[i].draw();
+		for(var i in Bullet.list)
+			Bullet.list[i].draw();
+	},40);
+		
+	var drawMap = function(){//the map is 32 by 32
+		var x = WIDTH/2 - Player.list[selfId].x;
+		var y = HEIGHT/2 - Player.list[selfId].y;
+		
+		var mapArray=[
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0],
+			[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0],
+			[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0],
+			[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0],
+			[0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0],
+		];
+		//0 is grass
+		//1 is dirt
+		//2 is stone
+		
+		for(var i=0; i < mapArray.length; i++){
+			for(var j=0; j < mapArray[i].length; j++){
+				//grass
+				if(mapArray[i][j]==0){
+					ctx.drawImage(Img.grass,x,y,32,32);
+				}
+				//dirt
+				if(mapArray[i][j]==1){
+					ctx.drawImage(Img.dirt,x,y,32,32);
+				}
+				//stone
+				if(mapArray[i][j]==2){
+					ctx.drawImage(Img.stone,x,y,32,32);
+				}
+				x += 32;
+			}
+			//reset x pos
+			for(var j=0; j < mapArray[i].length; j++){
+				x -= 32;			
+			};
+			y += 32;
+		}
+	}
+	
+	var drawScore = function(){
+		ctx.fillStyle = 'black';
+		ctx.font = '30px Arial';
+		ctx.fillText(Player.list[selfId].score,0,30);
+	}
+	
+	var drawCoords = function(){
+		var CoordX = Player.list[selfId].x - TempX;
+		var CoordY = Player.list[selfId].y - TempY;
+		ctx.fillStyle = 'black';
+		ctx.font = '12px Arial';
+		ctx.fillText("X: " + CoordX + " Y: " + CoordY,200,20);
+	}
+	
+	document.onkeydown = function(event){
+		if(event.keyCode === 68)	//d
+			socket.emit('keyPress',{inputId:'right',state:true});
+		else if(event.keyCode === 83)	//s
+			socket.emit('keyPress',{inputId:'down',state:true});
+		else if(event.keyCode === 65) //a
+			socket.emit('keyPress',{inputId:'left',state:true});
+		else if(event.keyCode === 87) // w
+			socket.emit('keyPress',{inputId:'up',state:true});
+			
+	}
+	document.onkeyup = function(event){
+		if(event.keyCode === 68)	//d
+			socket.emit('keyPress',{inputId:'right',state:false});
+		else if(event.keyCode === 83)	//s
+			socket.emit('keyPress',{inputId:'down',state:false});
+		else if(event.keyCode === 65) //a
+			socket.emit('keyPress',{inputId:'left',state:false});
+		else if(event.keyCode === 87) // w
+			socket.emit('keyPress',{inputId:'up',state:false});
+	}
+	
+	
+	document.onmousedown = function(event){
+		socket.emit('keyPress',{inputId:'attack',state:true});
+	}
+	
+	document.onmouseup = function(event){
+		socket.emit('keyPress',{inputId:'attack',state:false});
+	}
+	
+	document.addEventListener("contextmenu", (evt) => {
+		evt.preventDefault();
+	}, false);
+	
+	document.addEventListener("copy", (evt) => {
+		evt.preventDefault();
+	}, false);
+	
+
+	document.onmousemove = function(event){
+		var x = -250 + event.clientX - 8;
+		var y = -250 + event.clientY - 8;
+		var angle = Math.atan2(y,x) / Math.PI * 180;
+		socket.emit('keyPress',{inputId:'mouseAngle',state:angle});
+	}
+	
+	
+	
+	
+</script>
+
+
+
+
+

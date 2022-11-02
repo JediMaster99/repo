@@ -1,11 +1,21 @@
 {
   "name": "node-mmorpg",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "description": "\"# repo\"",
+  "main": "index.js",
+  "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JediMaster99/repo.git"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/JediMaster99/repo/issues"
+  },
+  "homepage": "https://github.com/JediMaster99/repo#readme"
 }
